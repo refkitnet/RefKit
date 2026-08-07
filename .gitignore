@@ -1,0 +1,46 @@
+# Dependencies and generated builds
+node_modules/
+**/.next/
+**/out/
+**/build/
+**/dist/
+**/*.tsbuildinfo
+
+# Tests and local output
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+**/.playwright-cli/
+output/
+
+# Local databases, uploads, and backups
+apps/app/.pgtest/
+apps/app/.pgtest.log
+apps/app/.local/
+deploy/self-hosted/backups/*
+!deploy/self-hosted/backups/.gitkeep
+
+# Environment and hosting state
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+**/.vercel/
+
+# Generated legal notice distributed by the application
+apps/app/public/third-party-notices.txt
+
+# Editors, operating systems, and logs
+.cursor/
+.codex/
+.agents/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+*.pem

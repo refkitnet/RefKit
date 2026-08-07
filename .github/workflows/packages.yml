@@ -1,0 +1,58 @@
+name: Packages
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/packages.yml'
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/packages.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.22.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build validation
+        run: npm run build:validation
+
+      - name: Typecheck packages
+        run: |
+          npm run typecheck -w @refkitnet/validation
+          npm run typecheck -w @refkitnet/sdk
+          npm run typecheck -w refkitnet
+          npm run typecheck -w @refkitnet/mcp
+
+      - name: Test validation
+        run: npm run test -w @refkitnet/validation
+
+      - name: Test CLI
+        run: npm run test -w refkitnet
+
+      - name: Build MCP
+        run: npm run build:mcp
+
+      - name: Test MCP
+        run: npm run test -w @refkitnet/mcp

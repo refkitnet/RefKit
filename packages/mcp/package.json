@@ -1,0 +1,49 @@
+{
+  "name": "@refkitnet/mcp",
+  "version": "0.1.0",
+  "description": "RefKit MCP server for AI agents - manage affiliate programs and integration setup",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/refkitnet/RefKit.git",
+    "directory": "packages/mcp"
+  },
+  "keywords": [
+    "refkit",
+    "affiliate",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent"
+  ],
+  "type": "module",
+  "bin": {
+    "refkit-mcp": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "BRAND_NOTICE.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@refkitnet/validation": "^0.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

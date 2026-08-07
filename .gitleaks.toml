@@ -1,0 +1,15 @@
+title = "RefKit secret scanning"
+minVersion = "v8.25.0"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deterministic non-production test encryption values"
+targetRules = ["generic-api-key"]
+regexes = [
+  '''^AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=$''',
+  '''^dGVzdC1lbmMtMzItYnl0ZS1rZXktZm9yLXZpdGVzdA==$''',
+  '''^test-enc-32-byte-key-for-vitest$''',
+  '''^vitest-cron-secret-min16$''',
+]

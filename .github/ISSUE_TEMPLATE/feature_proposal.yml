@@ -1,0 +1,53 @@
+name: Feature proposal
+description: Propose one narrowly scoped product change
+title: "[Feature]: "
+labels:
+  - feature
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem without prescribing extra scope.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest change that solves the problem.
+    validations:
+      required: true
+  - type: dropdown
+    id: classification
+    attributes:
+      label: Edition classification
+      options:
+        - Shared core
+        - Cloud-operated service
+        - Cloud-commercial entitlement
+        - Self-Hosted operator responsibility
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Operating dependencies
+      description: State whether this requires RefKit data, credentials, infrastructure, billing, or support delivery.
+    validations:
+      required: true
+  - type: textarea
+    id: editions
+    attributes:
+      label: Self-Hosted and Cloud behavior
+      description: Explain both experiences, including API and background behavior when a capability is unavailable.
+    validations:
+      required: true
+  - type: textarea
+    id: conformance
+    attributes:
+      label: Conformance and documentation
+      description: List cross-edition tests, wrappers, and public guidance that would change.
+    validations:
+      required: true

@@ -1,0 +1,338 @@
+name: Container image
+
+on:
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "apps/app/**"
+      - "packages/validation/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/container.yml"
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/refkitnet/refkit
+
+jobs:
+  scan:
+    name: Build and scan ${{ matrix.platform }}
+    if: github.ref_type != 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            archive: amd64
+          - platform: linux/arm64
+            archive: arm64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set test build metadata
+        id: release
+        shell: bash
+        run: echo "version=0.0.0-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          image: docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=docker.io/moby/buildkit:v0.31.2@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Build scan archive
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=docker,dest=${{ runner.temp }}/refkit-${{ matrix.archive }}.tar
+          build-args: |
+            REFKIT_VERSION=${{ steps.release.outputs.version }}
+            VCS_REF=${{ github.sha }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}
+          cache-from: type=gha,scope=refkit-${{ matrix.archive }}
+          cache-to: type=gha,mode=max,scope=refkit-${{ matrix.archive }}
+          provenance: false
+          sbom: false
+
+      - name: Fail on high or critical image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/refkit-${{ matrix.archive }}.tar
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          severity: HIGH,CRITICAL
+          scanners: vuln
+          timeout: 15m
+
+  prepare-release:
+    name: Validate immutable release
+    if: github.repository == 'refkitnet/RefKit' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Validate release tag
+        id: release
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag must be vMAJOR.MINOR.PATCH with an optional prerelease suffix." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=docker.io/moby/buildkit:v0.31.2@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse an existing release tag
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" >/dev/null 2>&1; then
+            echo "Image tag $IMAGE_NAME:$VERSION already exists and is immutable." >&2
+            exit 1
+          fi
+
+  build-release:
+    name: Build, push, and scan ${{ matrix.platform }}
+    if: github.repository == 'refkitnet/RefKit' && startsWith(github.ref, 'refs/tags/v')
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            archive: amd64
+          - platform: linux/arm64
+            archive: arm64
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          image: docker.io/tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=docker.io/moby/buildkit:v0.31.2@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push canonical architecture digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            REFKIT_VERSION=${{ needs.prepare-release.outputs.version }}
+            VCS_REF=${{ github.sha }}
+            SOURCE_URL=${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}
+          cache-from: type=gha,scope=refkit-${{ matrix.archive }}
+          cache-to: type=gha,mode=max,scope=refkit-${{ matrix.archive }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Scan the exact promoted architecture digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: false
+          severity: HIGH,CRITICAL
+          scanners: vuln
+          timeout: 15m
+
+      - name: Export scanned digest
+        shell: bash
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload scanned digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: refkit-digest-${{ matrix.archive }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish signed multi-architecture image
+    if: github.repository == 'refkitnet/RefKit' && startsWith(github.ref, 'refs/tags/v')
+    needs: [prepare-release, build-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download scanned digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: refkit-digest-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=docker.io/moby/buildkit:v0.31.2@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate immutable image tags
+        id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ needs.prepare-release.outputs.version }}
+            type=sha,format=long
+
+      - name: Assemble tags from the scanned digests
+        shell: bash
+        env:
+          IMAGE_TAGS: ${{ steps.metadata.outputs.tags }}
+        run: |
+          tag_arguments=()
+          while IFS= read -r tag; do
+            [[ -n "$tag" ]] && tag_arguments+=("-t" "$tag")
+          done <<< "$IMAGE_TAGS"
+
+          source_arguments=()
+          for digest_file in "$RUNNER_TEMP/digests/"*; do
+            digest="$(basename "$digest_file")"
+            [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || {
+              echo "Unexpected digest artifact: $digest" >&2
+              exit 1
+            }
+            source_arguments+=("$IMAGE_NAME@sha256:$digest")
+          done
+
+          if (( ${#source_arguments[@]} != 2 )); then
+            echo "Expected exactly two scanned architecture digests." >&2
+            exit 1
+          fi
+
+          docker buildx imagetools create "${tag_arguments[@]}" "${source_arguments[@]}"
+
+      - name: Resolve promoted manifest digest
+        id: manifest
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          digest="$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" | awk '/^Digest:/ {print $2; exit}')"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "Could not resolve the promoted manifest digest." >&2
+            exit 1
+          }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          docker buildx imagetools inspect "$IMAGE_NAME@$digest"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Sign image digest with GitHub OIDC
+        shell: bash
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+        run: cosign sign --yes "$IMAGE_NAME@$DIGEST"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Publish digest summary
+        shell: bash
+        env:
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          {
+            echo "## RefKit container"
+            echo
+            echo "Source tag: \`v$VERSION\`"
+            echo
+            echo "Image tag: \`$VERSION\`"
+            echo
+            echo "Promoted digest: \`$IMAGE_NAME@$DIGEST\`"
+            echo
+            echo "Scanned architecture digests:"
+            for digest_file in "$RUNNER_TEMP/digests/"*; do
+              echo "- \`$IMAGE_NAME@sha256:$(basename "$digest_file")\`"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

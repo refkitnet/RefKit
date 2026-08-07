@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a reproducible RefKit defect
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include secrets, private data, or exploit details. Use the private security link for suspected vulnerabilities.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - Self-Hosted application
+        - RefKit Cloud
+        - SDK
+        - CLI
+        - MCP
+        - Website or documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or source revision
+      placeholder: v1.0.0, package version, image digest, or Git commit
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable example with sensitive values redacted.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include relevant redacted logs if they help.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, personal data, customer data, private URLs, and production identifiers.
+          required: true
+        - label: This is not a vulnerability report.
+          required: true

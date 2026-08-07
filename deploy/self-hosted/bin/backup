@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+require_runtime
+
+restart_services=()
+
+for service in app backup-scheduler; do
+  if service_is_running "$service"; then
+    restart_services+=("$service")
+  fi
+done
+
+restart_previous_services() {
+  if (( ${#restart_services[@]} > 0 )); then
+    refkit_compose up -d "${restart_services[@]}" >/dev/null
+  fi
+}
+trap restart_previous_services EXIT
+
+if (( ${#restart_services[@]} > 0 )); then
+  printf '[refkit:ops] Stopping application writes for a consistent database and uploads backup.\n'
+  refkit_compose stop "${restart_services[@]}"
+fi
+
+refkit_compose --profile tools run --rm backup-once
+
+printf '[refkit:ops] Cold backup completed.\n'

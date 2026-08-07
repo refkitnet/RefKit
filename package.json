@@ -1,0 +1,60 @@
+{
+  "name": "refkit",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.8",
+  "description": "Open-source affiliate infrastructure for RefKit Cloud and Self-Hosted",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/refkitnet/RefKit.git"
+  },
+  "homepage": "https://refkit.net",
+  "bugs": {
+    "url": "https://github.com/refkitnet/RefKit/issues"
+  },
+  "engines": {
+    "node": ">=22.13.0 <23",
+    "npm": ">=10.9.8 <11"
+  },
+  "workspaces": [
+    "apps/app",
+    "packages/validation",
+    "packages/sdk",
+    "packages/cli",
+    "packages/mcp"
+  ],
+  "scripts": {
+    "dev:app": "npm run dev -w @refkitnet/app",
+    "build": "npm run build:app && npm run build:sdk && npm run build:cli && npm run build:mcp",
+    "build:app": "npm run build -w @refkitnet/app",
+    "build:validation": "npm run build -w @refkitnet/validation",
+    "build:sdk": "npm run build -w @refkitnet/sdk",
+    "build:cli": "npm run build -w refkitnet",
+    "build:mcp": "npm run build -w @refkitnet/mcp",
+    "db:generate": "npm run db:generate -w @refkitnet/app",
+    "db:migrate": "npm run db:migrate -w @refkitnet/app",
+    "db:seed": "npm run db:seed -w @refkitnet/app",
+    "check": "npm run check:app && npm run check:packages && npm run check:publication",
+    "check:app": "npm run build:validation && npm run lint -w @refkitnet/app && npm run typecheck -w @refkitnet/app && npm test",
+    "check:packages": "npm run build:validation && npm run typecheck -w @refkitnet/validation && npm run typecheck -w @refkitnet/sdk && npm run typecheck -w refkitnet && npm run typecheck -w @refkitnet/mcp && npm run test -w @refkitnet/validation && npm run test -w refkitnet && npm run build:mcp && npm run test -w @refkitnet/mcp",
+    "check:publication": "node scripts/check-publication.mjs",
+    "test": "npm run test -w @refkitnet/app",
+    "test:e2e": "npm run test:e2e -w @refkitnet/app",
+    "test:e2e:headed": "npm run test:e2e:headed -w @refkitnet/app",
+    "test:db": "npm run test:db -w @refkitnet/app",
+    "test:db:stop": "npm run test:db:stop -w @refkitnet/app",
+    "test:db:reset": "npm run test:db:reset -w @refkitnet/app",
+    "self-hosted:recover-admin": "npm run self-hosted:recover-admin -w @refkitnet/app"
+  },
+  "overrides": {
+    "path-to-regexp": "8.4.2",
+    "tar": "7.5.22",
+    "minimatch": "10.2.5",
+    "js-yaml": "4.3.1",
+    "smol-toml": "1.7.0",
+    "@vercel/blob@2.6.1": {
+      "undici": "6.28.0"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "refkitnet",
+  "version": "0.1.0",
+  "description": "RefKit CLI for developers and affiliates",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/refkitnet/RefKit.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "refkit",
+    "affiliate",
+    "cli",
+    "stripe"
+  ],
+  "type": "module",
+  "bin": {
+    "refkitnet": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@refkitnet/validation": "^0.1.0",
+    "commander": "^14.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.1.10"
+  }
+}

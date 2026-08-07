@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  RefKit dashboard shadcn tokens.
+  Structure is blue-gray SaaS. Orange is brand accent for primary actions only.
+*/
+:root {
+  --background: #f7f8fa;
+  --foreground: #182548;
+  --card: #ffffff;
+  --card-foreground: #182548;
+  --popover: #ffffff;
+  --popover-foreground: #182548;
+  --brand: #f97316;
+  --brand-hover: #ea580c;
+  --brand-soft: rgba(249, 115, 22, 0.1);
+  --brand-border: rgba(249, 115, 22, 0.35);
+  --primary: var(--brand);
+  --primary-foreground: #182548;
+  --secondary: #eef1f6;
+  --secondary-foreground: #182548;
+  --muted: #eef1f6;
+  --muted-foreground: #5b6475;
+  --accent: #e8ecf3;
+  --accent-foreground: #182548;
+  --destructive: #dc2626;
+  --destructive-foreground: #fafafa;
+  --success: #16a34a;
+  --success-foreground: #14532d;
+  --border: #e3e7ee;
+  --input: #d9dee8;
+  --ring: #94a3b8;
+  --radius: 0.25rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #182548;
+  --sidebar-border: #e3e7ee;
+  --sidebar-accent: #e8ecf3;
+  --sidebar-accent-foreground: #182548;
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #182548;
+  --sidebar-ring: #94a3b8;
+  --kit-text: #a94300;
+  --warm-tint: #fff3e8;
+}
+
+.dark {
+  --background: #101624;
+  --foreground: #dde6f7;
+  --card: #161e31;
+  --card-foreground: #dde6f7;
+  --popover: #161e31;
+  --popover-foreground: #dde6f7;
+  --brand: #f97316;
+  --brand-hover: #ea580c;
+  --brand-soft: rgba(249, 115, 22, 0.1);
+  --brand-border: rgba(249, 115, 22, 0.35);
+  --primary: var(--brand);
+  --primary-foreground: #101624;
+  --secondary: #1c2538;
+  --secondary-foreground: #dde6f7;
+  --muted: #1c2538;
+  --muted-foreground: #9aa6bb;
+  --accent: #222b40;
+  --accent-foreground: #dde6f7;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --success: #22c55e;
+  --success-foreground: #bbf7d0;
+  --border: #253047;
+  --input: #34415a;
+  --ring: #94a3b8;
+  --sidebar: #161e31;
+  --sidebar-foreground: #dde6f7;
+  --sidebar-border: #253047;
+  --sidebar-accent: #222b40;
+  --sidebar-accent-foreground: #dde6f7;
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: #101624;
+  --sidebar-ring: #94a3b8;
+  --kit-text: #fd8621;
+  --warm-tint: #2b211a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-border: var(--brand-border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-kit-text: var(--kit-text);
+  --color-warm-tint: var(--warm-tint);
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: calc(var(--radius) * 0.875);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

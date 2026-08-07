@@ -1,0 +1,169 @@
+name: refkit
+
+x-postgres-client-environment: &postgres-client-environment
+  PGHOST: postgres
+  PGPORT: "5432"
+  PGDATABASE: ${POSTGRES_DB:-refkit}
+  PGUSER: ${POSTGRES_USER:-refkit}
+  PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+
+x-backup-service: &backup-service
+  image: ${POSTGRES_IMAGE:-postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394}
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment:
+    <<: *postgres-client-environment
+    REFKIT_IMAGE: ${REFKIT_IMAGE:?Set REFKIT_IMAGE to a pinned release image in .env}
+    REFKIT_VERSION: ${REFKIT_VERSION:?Set REFKIT_VERSION in .env}
+    BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    BACKUP_MIN_FREE_MB: ${BACKUP_MIN_FREE_MB:-1024}
+  volumes:
+    - ./scripts:/opt/refkit/bin:ro
+    - ${BACKUP_DIR:-./backups}:/backups
+    - uploads:/uploads:ro
+  networks:
+    - backend
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-refkit}
+      POSTGRES_USER: ${POSTGRES_USER:-refkit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks:
+      - backend
+    shm_size: 256mb
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    stop_grace_period: 1m
+
+  migrate:
+    image: ${REFKIT_IMAGE:?Set REFKIT_IMAGE to a pinned release image in .env}
+    profiles: [tools]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-refkit}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-refkit}
+    command: ["apps/app/scripts/self-hosted/migrate.mjs"]
+    networks:
+      - backend
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  app:
+    image: ${REFKIT_IMAGE:?Set REFKIT_IMAGE to a pinned release image in .env}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      REFKIT_EDITION: self-hosted
+      DATABASE_URL: postgresql://${POSTGRES_USER:-refkit}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-refkit}
+      APP_URL: ${APP_URL:?Set APP_URL to the public HTTPS origin in .env}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      PAYOUT_DETAILS_ENCRYPTION_KEY: ${PAYOUT_DETAILS_ENCRYPTION_KEY:?Set PAYOUT_DETAILS_ENCRYPTION_KEY in .env}
+      IP_HASH_SALT: ${IP_HASH_SALT:?Set IP_HASH_SALT in .env}
+      SELF_HOSTED_SETUP_TOKEN: ${SELF_HOSTED_SETUP_TOKEN:?Set SELF_HOSTED_SETUP_TOKEN in .env}
+      UPLOADS_DIR: /var/lib/refkit/uploads
+      EMAIL_DELIVERY: ${EMAIL_DELIVERY:?Set EMAIL_DELIVERY to smtp or resend in .env}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:?Set EMAIL_FROM_ADDRESS in .env}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ADMIN_EMAIL_ALLOWLIST: ${ADMIN_EMAIL_ALLOWLIST:-}
+      ADMIN_ALERT_EMAILS: ${ADMIN_ALERT_EMAILS:-}
+      WEBHOOK_ALLOW_PRIVATE_NETWORKS: ${WEBHOOK_ALLOW_PRIVATE_NETWORKS:-false}
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - uploads:/var/lib/refkit/uploads
+    networks:
+      - backend
+      - egress
+    ports:
+      - 127.0.0.1:${REFKIT_HTTP_PORT:-3000}:3000
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=0700
+      - /app/apps/app/.next/cache:uid=65532,gid=65532,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    stop_grace_period: 30s
+
+  backup-scheduler:
+    <<: *backup-service
+    restart: "on-failure:5"
+    environment:
+      <<: *postgres-client-environment
+      REFKIT_IMAGE: ${REFKIT_IMAGE:?Set REFKIT_IMAGE to a pinned release image in .env}
+      REFKIT_VERSION: ${REFKIT_VERSION:?Set REFKIT_VERSION in .env}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_MIN_FREE_MB: ${BACKUP_MIN_FREE_MB:-1024}
+    entrypoint: ["/bin/bash", "/opt/refkit/bin/scheduled-backup.sh"]
+
+  backup-once:
+    <<: *backup-service
+    profiles: [tools]
+    entrypoint: ["/bin/bash", "/opt/refkit/bin/backup.sh"]
+
+  restore:
+    <<: *backup-service
+    profiles: [tools]
+    environment:
+      <<: *postgres-client-environment
+      REFKIT_IMAGE: ${REFKIT_IMAGE:?Set REFKIT_IMAGE to a pinned release image in .env}
+      REFKIT_VERSION: ${REFKIT_VERSION:?Set REFKIT_VERSION in .env}
+      RESTORE_BACKUP: ${RESTORE_BACKUP:-}
+      RESTORE_CONFIRM: ${RESTORE_CONFIRM:-}
+      UPLOADS_UID: "65532"
+      UPLOADS_GID: "65532"
+    volumes:
+      - ./scripts:/opt/refkit/bin:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - uploads:/uploads
+    entrypoint: ["/bin/bash", "/opt/refkit/bin/restore.sh"]
+
+volumes:
+  database:
+  uploads:
+
+networks:
+  backend:
+    internal: true
+  egress:

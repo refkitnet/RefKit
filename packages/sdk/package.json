@@ -1,0 +1,41 @@
+{
+  "name": "@refkitnet/sdk",
+  "version": "0.1.0",
+  "description": "RefKit browser and server SDK for click capture, customer identification, and API-reported payments",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/refkitnet/RefKit.git",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "refkit",
+    "affiliate",
+    "attribution",
+    "stripe",
+    "referral"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

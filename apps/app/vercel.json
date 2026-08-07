@@ -1,0 +1,6 @@
+{
+  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npx drizzle-kit migrate; fi && npm run build",
+  "devCommand": "npm run dev -- --port $PORT",
+  "installCommand": "cd ../.. && npm install",
+  "framework": "nextjs"
+}

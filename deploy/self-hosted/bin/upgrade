@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+require_runtime
+
+target_image="${1:-}"
+target_version="${2:-}"
+
+if [[ -z "$target_image" || -z "$target_version" ]]; then
+  printf 'Usage: %s <pinned-target-image> <target-version>\n' "$0" >&2
+  exit 1
+fi
+
+if [[ ! "$target_image" =~ @sha256:[0-9a-f]{64}$ && ! "$target_image" =~ :[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  printf '[refkit:ops] ERROR: Target image must include an exact tag or sha256 digest.\n' >&2
+  exit 1
+fi
+
+if [[ "$target_image" == *:latest ]]; then
+  printf '[refkit:ops] ERROR: The mutable latest tag is not supported for upgrades.\n' >&2
+  exit 1
+fi
+
+if [[ ! "$target_version" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]]; then
+  printf '[refkit:ops] ERROR: Target version contains unsupported characters.\n' >&2
+  exit 1
+fi
+
+current_image="$(read_env_value REFKIT_IMAGE)"
+current_version="$(read_env_value REFKIT_VERSION)"
+
+[[ -n "$current_image" && -n "$current_version" ]] || {
+  printf '[refkit:ops] ERROR: REFKIT_IMAGE and REFKIT_VERSION must be set in %s.\n' "$env_file" >&2
+  exit 1
+}
+
+printf '[refkit:ops] Pulling target image %s before downtime.\n' "$target_image"
+docker pull "$target_image"
+
+image_version="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$target_image")"
+
+if [[ "$image_version" != "$target_version" ]]; then
+  printf '[refkit:ops] ERROR: Target image reports version %s, not %s.\n' "$image_version" "$target_version" >&2
+  exit 1
+fi
+
+target_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$target_image")"
+backup_directory="$(resolved_backup_directory)"
+mkdir -p "$backup_directory"
+
+restart_old_on_failure=true
+previously_running=()
+
+for service in app backup-scheduler; do
+  if service_is_running "$service"; then
+    previously_running+=("$service")
+  fi
+done
+
+handle_failure() {
+  local status="$?"
+
+  if (( status != 0 )) && [[ "$restart_old_on_failure" == true ]] && (( ${#previously_running[@]} > 0 )); then
+    refkit_compose up -d "${previously_running[@]}" >/dev/null 2>&1 || true
+  fi
+
+  exit "$status"
+}
+trap handle_failure EXIT
+
+if (( ${#previously_running[@]} > 0 )); then
+  refkit_compose stop "${previously_running[@]}"
+fi
+
+printf '[refkit:ops] Creating the required pre-migration backup.\n'
+backup_output="$(refkit_compose --profile tools run --rm backup-once)"
+printf '%s\n' "$backup_output"
+backup_name="$(printf '%s\n' "$backup_output" | sed -n 's/^BACKUP_FILE=//p' | tail -n 1)"
+
+if [[ -z "$backup_name" || "$backup_name" == */* || "$backup_name" == *..* || ! -f "$backup_directory/$backup_name" ]]; then
+  printf '[refkit:ops] ERROR: Backup operation did not report a valid BACKUP_FILE. The application remains stopped.\n' >&2
+  exit 1
+fi
+
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+state_file="$backup_directory/upgrade-${timestamp}.txt"
+umask 077
+cat > "$state_file" <<EOF
+started_at=${timestamp}
+previous_image=${current_image}
+previous_version=${current_version}
+target_image=${target_image}
+target_version=${target_version}
+target_revision=${target_revision}
+pre_migration_backup=${backup_name}
+status=backup_complete
+EOF
+
+temporary_env="$(mktemp "$env_file.tmp.XXXXXX")"
+chmod --reference="$env_file" "$temporary_env"
+awk -v image="$target_image" -v version="$target_version" '
+  BEGIN { found_image = 0; found_version = 0 }
+  /^REFKIT_IMAGE=/ { print "REFKIT_IMAGE=" image; found_image = 1; next }
+  /^REFKIT_VERSION=/ { print "REFKIT_VERSION=" version; found_version = 1; next }
+  { print }
+  END {
+    if (!found_image) print "REFKIT_IMAGE=" image
+    if (!found_version) print "REFKIT_VERSION=" version
+  }
+' "$env_file" > "$temporary_env"
+mv -- "$temporary_env" "$env_file"
+
+restart_old_on_failure=false
+
+if ! refkit_compose --profile tools run --rm migrate; then
+  cat >&2 <<EOF
+[refkit:ops] ERROR: Migration failed. The application remains stopped.
+[refkit:ops] Previous image: ${current_image}
+[refkit:ops] Pre-migration backup: ${backup_name}
+[refkit:ops] Recovery: restore REFKIT_IMAGE and REFKIT_VERSION in .env, then run ./bin/restore ${backup_name}.
+EOF
+  exit 1
+fi
+
+if ! refkit_compose up -d --wait --wait-timeout 180 app; then
+  refkit_compose stop app >/dev/null 2>&1 || true
+  cat >&2 <<EOF
+[refkit:ops] ERROR: The upgraded application did not become ready and remains stopped.
+[refkit:ops] Restore ${backup_name} with ${current_image} if the readiness error cannot be corrected.
+EOF
+  exit 1
+fi
+
+refkit_compose up -d backup-scheduler
+printf 'status=complete\ncompleted_at=%s\n' "$(date -u +%Y%m%dT%H%M%SZ)" >> "$state_file"
+
+trap - EXIT
+printf '[refkit:ops] Upgrade to %s completed and readiness passed.\n' "$target_version"

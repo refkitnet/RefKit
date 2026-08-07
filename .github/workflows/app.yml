@@ -1,0 +1,82 @@
+name: App
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/app.yml'
+  pull_request:
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/app.yml'
+
+env:
+  DATABASE_URL: postgresql://refkit:refkit@localhost:5432/refkit_test
+  BETTER_AUTH_SECRET: ci-better-auth-secret-at-least-32-chars
+  RESEND_API_KEY: re_ci_placeholder_key
+  RESEND_FROM_EMAIL: auth@refkit.net
+  PAYOUT_DETAILS_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  IP_HASH_SALT: ci-ip-hash-salt-min-16
+  APP_URL: http://localhost:3000
+  STRIPE_FIXTURE_MODE: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EMAIL_DELIVERY: resend
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_USER: refkit
+          POSTGRES_PASSWORD: refkit
+          POSTGRES_DB: refkit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U refkit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.22.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build validation
+        run: npm run build:validation
+
+      - name: Lint
+        run: npm run lint -w @refkitnet/app
+
+      - name: Typecheck
+        run: npm run typecheck -w @refkitnet/app
+
+      - name: Run migrations
+        working-directory: apps/app
+        run: npx drizzle-kit migrate
+
+      - name: Test
+        run: npm test

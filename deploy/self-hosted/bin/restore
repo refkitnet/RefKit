@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+require_runtime
+
+backup_name="${1:-}"
+
+if [[ -z "$backup_name" || "$backup_name" == */* || "$backup_name" == *..* ]]; then
+  printf 'Usage: %s <backup-filename>\n' "$0" >&2
+  exit 1
+fi
+
+backup_directory="$(resolved_backup_directory)"
+[[ -f "$backup_directory/$backup_name" ]] || {
+  printf '[refkit:ops] ERROR: Backup not found: %s\n' "$backup_directory/$backup_name" >&2
+  exit 1
+}
+
+database_name="$(read_env_value POSTGRES_DB)"
+database_name="${database_name:-refkit}"
+confirmation="restore-$database_name"
+
+if [[ "${RESTORE_CONFIRM:-}" != "$confirmation" ]]; then
+  if [[ ! -t 0 ]]; then
+    printf '[refkit:ops] ERROR: Set RESTORE_CONFIRM=%s for non-interactive restore.\n' "$confirmation" >&2
+    exit 1
+  fi
+
+  printf 'This replaces database %s and all uploads. Type %s to continue: ' "$database_name" "$confirmation"
+  read -r typed_confirmation
+  [[ "$typed_confirmation" == "$confirmation" ]] || {
+    printf '[refkit:ops] Restore cancelled.\n' >&2
+    exit 1
+  }
+fi
+
+refkit_compose up -d postgres
+refkit_compose stop app backup-scheduler >/dev/null 2>&1 || true
+
+export RESTORE_BACKUP="$backup_name"
+export RESTORE_CONFIRM="$confirmation"
+
+if ! refkit_compose --profile tools run --rm restore; then
+  printf '[refkit:ops] ERROR: Restore failed. The application remains stopped. Fix the reported error and retry the same backup.\n' >&2
+  exit 1
+fi
+
+if ! refkit_compose up -d --wait --wait-timeout 180 app; then
+  refkit_compose stop app >/dev/null 2>&1 || true
+  printf '[refkit:ops] ERROR: Restored application did not become ready. It remains stopped. Verify secrets and image version before retrying.\n' >&2
+  exit 1
+fi
+
+refkit_compose up -d backup-scheduler
+printf '[refkit:ops] Restore verified by the application readiness check.\n'

@@ -1,0 +1,13 @@
+RefKit licensing and source notice
+
+Copyright (c) 2026 RefKit contributors
+
+Most material in the public core repository is licensed under AGPL-3.0-only. The SDK, CLI, MCP, and validation packages are licensed under MIT. Brand assets and third-party material are exceptions. Marketing, demos, hosted canaries, operated-service packaging, product source, and private operations are not included in the public distribution. See LICENSES.md for the authoritative public map and TRADEMARKS.md for brand use.
+
+If you modify AGPL-covered RefKit software and let users interact with it over a network, review section 13 of the AGPL. You may be required to offer those users the complete Corresponding Source for the version they use. Corresponding Source can include build, installation, migration, deployment, and generation materials needed to produce and run that version.
+
+RefKit Cloud releases must publish the applicable Corresponding Source no later than deployment of that revision. Each release must identify its source revision and preserve applicable legal notices. These are release requirements and do not claim that an unverified deployment currently satisfies them.
+
+Third-party components and assets may carry separate copyright and license notices. Preserve those notices. See THIRD_PARTY_NOTICES.md for material copied into the repository and the dependency notice file included with each distributed build.
+
+Legal review of the license, contributor, trademark, and third-party notice treatment was completed on 2026-08-05. The reviewer's identity is retained in the private legal record.
