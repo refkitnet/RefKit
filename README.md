@@ -127,7 +127,7 @@ not required to build, modify, or operate RefKit Self-Hosted.
 
 ## Development
 
-Install Node.js 22.13 or newer (before Node.js 23) and npm 10.9.8, then install
+Install Node.js 22.23.4 or newer (before Node.js 23) and npm 10.9.8, then install
 the locked dependencies:
 
 ```bash
